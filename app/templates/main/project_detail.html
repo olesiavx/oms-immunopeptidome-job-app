@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Project · {{ project.name }}{% endblock %}
+{% block content %}
+  <h1>Project: {{ project.name }}</h1>
+
+  <p><b>Partners:</b> {{ project.partners_text or "—" }}</p>
+  <p><b>Description:</b> {{ project.short_description or "—" }}</p>
+  <p><b>Created:</b> {{ project.created_at.strftime("%Y-%m-%d") }}</p>
+
+  <hr/>
+
+  <h2>Jobs</h2>
+  {% if jobs %}
+    <ul>
+      {% for job in jobs %}
+        <li>
+          <a href="{{ url_for('jobs.job_detail', job_id=job.id) }}">Job #{{ job.id }}</a>
+          — {{ job.status }} — {{ job.priority }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No jobs under this project yet.</p>
+  {% endif %}
+
+  <p><a href="{{ url_for('jobs.list_jobs') }}">← Back to Jobs</a></p>
+{% endblock %}

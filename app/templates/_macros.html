@@ -1,0 +1,17 @@
+{% macro status_badge(status) %}
+  {% set badge = "bg-light text-dark" %}
+  {% if status == "SUBMITTED" %}
+    {% set badge = "bg-secondary" %}
+  {% elif status == "TRIAGED" %}
+    {% set badge = "bg-info" %}
+  {% elif status == "IN_PROGRESS" %}
+    {% set badge = "bg-primary" %}
+  {% elif status == "WAITING_ON_DATA" %}
+    {% set badge = "bg-warning" %}
+  {% elif status == "QC" %}
+    {% set badge = "bg-dark" %}
+  {% elif status == "COMPLETED" %}
+    {% set badge = "bg-success" %}
+  {% endif %}
+  <span class="badge {{ badge }}">{{ status }}</span>
+{% endmacro %}

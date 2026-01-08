@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}New OMS Job{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">New OMS Job</h1>
+    <div class="text-muted small">Submit an immunopeptidome / proteome job request with search requirements</div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+    <span class="text-muted small me-2">Quick presets:</span>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('jobs.new_job_wizard', preset='MHC1_STANDARD') }}">MHC-I</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('jobs.new_job_wizard', preset='MHC2_STANDARD') }}">MHC-II</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('jobs.new_job_wizard', preset='MICRO_ROUNDS') }}">Micro</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('jobs.new_job_wizard', preset='KITCHEN_SINK') }}">Kitchen Sink</a>
+  </div>
+</div>
+
+<form method="post" class="d-flex flex-column gap-3">
+  {{ form.hidden_tag() }}
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Project</h2>
+      <div class="row g-3">
+        <div class="col-md-6">
+          {{ form.project_name.label(class="form-label") }}
+          {{ form.project_name(class="form-control") }}
+        </div>
+        <div class="col-md-6">
+          {{ form.project_owner.label(class="form-label") }}
+          {{ form.project_owner(class="form-control") }}
+        </div>
+        <div class="col-12">
+          {{ form.project_partners.label(class="form-label") }}
+          {{ form.project_partners(class="form-control") }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Search</h2>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          {{ form.project_type.label(class="form-label") }}
+          {{ form.project_type(class="form-select") }}
+        </div>
+        <div class="col-md-4">
+          {{ form.species.label(class="form-label") }}
+          {{ form.species(class="form-control") }}
+        </div>
+        <div class="col-md-4">
+          {{ form.instrument.label(class="form-label") }}
+          {{ form.instrument(class="form-control") }}
+        </div>
+
+        <div class="col-md-4">
+          {{ form.ms_mode.label(class="form-label") }}
+          {{ form.ms_mode(class="form-select") }}
+        </div>
+
+        <div class="col-md-4">
+          {{ form.tmt_label_type.label(class="form-label") }}
+          {{ form.tmt_label_type(class="form-select", id="tmt_label_type") }}
+        </div>
+
+        <div class="col-md-4" id="tmt_plex_row">
+          {{ form.tmt_plex.label(class="form-label") }}
+          {{ form.tmt_plex(class="form-control") }}
+          <div class="form-text">Allowed: 6, 10, 11, 16, 18, 32</div>
+        </div>
+
+        <div class="col-12" id="tmt_schema_row">
+          {{ form.tmt_labelling_schema.label(class="form-label") }}
+          {{ form.tmt_labelling_schema(class="form-control", rows="2") }}
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            {{ form.carbamidomethylated(class="form-check-input", id="carbam") }}
+            {{ form.carbamidomethylated.label(class="form-check-label", for="carbam") }}
+          </div>
+        </div>
+
+        <div class="col-12">
+          {{ form.additional_mods.label(class="form-label") }}
+          {{ form.additional_mods(class="form-control", placeholder="Oxidation, Acetyl, ...") }}
+        </div>
+
+        <div class="col-md-6">
+          {{ form.search_engines_mode.label(class="form-label") }}
+          {{ form.search_engines_mode(class="form-select") }}
+        </div>
+
+        <div class="col-md-6">
+          {{ form.additional_searches.label(class="form-label") }}
+          {{ form.additional_searches(class="form-control", placeholder="PEAKs, FragPipe, PD_Infrys") }}
+        </div>
+
+        <div class="col-12">
+          {{ form.sample_description.label(class="form-label") }}
+          {{ form.sample_description(class="form-control", rows="3") }}
+        </div>
+
+        <div class="col-12">
+          {{ form.hla_typing_information.label(class="form-label") }}
+          {{ form.hla_typing_information(class="form-control", rows="3") }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Raw files</h2>
+      {{ form.raw_files_multiline.label(class="form-label") }}
+      {{ form.raw_files_multiline(class="form-control", rows="4", placeholder="/path/to/file1.raw\n/path/to/file2.raw") }}
+      <div class="form-text">One path/URI per line.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Database requests</h2>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="form-check">
+            {{ form.db_canonical(class="form-check-input", id="db_canonical") }}
+            {{ form.db_canonical.label(class="form-check-label", for="db_canonical") }}
+          </div>
+
+          <div class="form-check">
+            {{ form.db_basic_noncanonical(class="form-check-input", id="db_basic") }}
+            {{ form.db_basic_noncanonical.label(class="form-check-label", for="db_basic") }}
+          </div>
+
+          <div class="form-check">
+            {{ form.db_cancer_specific(class="form-check-input", id="db_cancer") }}
+            {{ form.db_cancer_specific.label(class="form-check-label", for="db_cancer") }}
+          </div>
+
+          <div class="form-check">
+            {{ form.db_full_nonc(class="form-check-input", id="db_full") }}
+            {{ form.db_full_nonc.label(class="form-check-label", for="db_full") }}
+          </div>
+
+          <div class="form-check">
+            {{ form.db_personal(class="form-check-input", id="db_personal") }}
+            {{ form.db_personal.label(class="form-check-label", for="db_personal") }}
+          </div>
+
+          <div class="mt-2" id="personal_fasta_row">
+            {{ form.personal_fasta_location.label(class="form-label") }}
+            {{ form.personal_fasta_location(class="form-control", placeholder="/path/to/personal.fasta") }}
+          </div>
+
+          <div class="form-check mt-3">
+            {{ form.db_special_fasta(class="form-check-input", id="db_special") }}
+            {{ form.db_special_fasta.label(class="form-check-label", for="db_special") }}
+          </div>
+
+          <div class="mt-2" id="special_fasta_row">
+            {{ form.special_fasta_location.label(class="form-label") }}
+            {{ form.special_fasta_location(class="form-control", placeholder="/path/to/special.fasta") }}
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          {{ form.db_requirements_text.label(class="form-label") }}
+          {{ form.db_requirements_text(class="form-control", rows="6", placeholder="e.g. RNAseq RIN > 6, PolyA stranded PE depth 200x...") }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Validation</h2>
+
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="form-check">
+            {{ form.val_hla_binding(class="form-check-input", id="val_hla") }}
+            {{ form.val_hla_binding.label(class="form-check-label", for="val_hla") }}
+          </div>
+          <div class="form-check">
+            {{ form.val_conflict_delta(class="form-check-input", id="val_delta") }}
+            {{ form.val_conflict_delta.label(class="form-check-label", for="val_delta") }}
+          </div>
+          <div class="form-check">
+            {{ form.val_pep_filter(class="form-check-input", id="val_pep") }}
+            {{ form.val_pep_filter.label(class="form-check-label", for="val_pep") }}
+          </div>
+          <div class="form-check">
+            {{ form.val_two_engine(class="form-check-input", id="val_two") }}
+            {{ form.val_two_engine.label(class="form-check-label", for="val_two") }}
+          </div>
+          <div class="form-check">
+            {{ form.val_pd_infrys(class="form-check-input", id="val_pd") }}
+            {{ form.val_pd_infrys.label(class="form-check-label", for="val_pd") }}
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="form-check">
+            {{ form.val_pepquery(class="form-check-input", id="val_pq") }}
+            {{ form.val_pepquery.label(class="form-check-label", for="val_pq") }}
+          </div>
+          <div class="form-check">
+            {{ form.val_rnaseq_quant(class="form-check-input", id="val_rna") }}
+            {{ form.val_rnaseq_quant.label(class="form-check-label", for="val_rna") }}
+          </div>
+
+          <div class="mt-2">
+            {{ form.val_genome_mapping.label(class="form-label") }}
+            {{ form.val_genome_mapping(class="form-select") }}
+          </div>
+
+          <div class="form-check mt-2">
+            {{ form.val_immunogenicity(class="form-check-input", id="val_imm") }}
+            {{ form.val_immunogenicity.label(class="form-check-label", for="val_imm") }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="micro_section">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Microproteome rounds</h2>
+      <div class="form-check mb-2">
+        {{ form.micro_rounds_enabled(class="form-check-input", id="micro_enabled") }}
+        {{ form.micro_rounds_enabled.label(class="form-check-label", for="micro_enabled") }}
+      </div>
+
+      <div id="micro_text_row">
+        {{ form.micro_rounds_text.label(class="form-label") }}
+        {{ form.micro_rounds_text(class="form-control", rows="3", placeholder="8-13\n14-24\n25-35") }}
+        <div class="form-text">One range per line.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Priority</h2>
+      {{ form.priority.label(class="form-label") }}
+      {{ form.priority(class="form-select") }}
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-end">
+    {{ form.submit(class="btn btn-primary btn-lg") }}
+  </div>
+</form>
+
+<script>
+  function toggleTMT() {
+    const tmtType = document.querySelector('[name="tmt_label_type"]')?.value || "";
+    const show = (tmtType !== "LF");
+    const plexRow = document.getElementById("tmt_plex_row");
+    const schemaRow = document.getElementById("tmt_schema_row");
+    if (plexRow) plexRow.style.display = show ? "" : "none";
+    if (schemaRow) schemaRow.style.display = show ? "" : "none";
+  }
+
+  function toggleMicroByProjectType() {
+    const type = document.querySelector('[name="project_type"]')?.value || "";
+    const microSection = document.getElementById("micro_section");
+    const show = (type === "MICROPROTEOME");
+    if (microSection) microSection.style.display = show ? "" : "none";
+    toggleMicroRounds();
+  }
+
+  function toggleMicroRounds() {
+    const enabled = document.querySelector('[name="micro_rounds_enabled"]')?.checked;
+    const microText = document.getElementById("micro_text_row");
+    const type = document.querySelector('[name="project_type"]')?.value || "";
+    const shouldShow = (type === "MICROPROTEOME") && enabled;
+    if (microText) microText.style.display = shouldShow ? "" : "none";
+  }
+
+  function togglePersonalFasta() {
+    const checked = document.querySelector('[name="db_personal"]')?.checked;
+    const row = document.getElementById("personal_fasta_row");
+    if (row) row.style.display = checked ? "" : "none";
+  }
+
+  function toggleSpecialFasta() {
+    const checked = document.querySelector('[name="db_special_fasta"]')?.checked;
+    const row = document.getElementById("special_fasta_row");
+    if (row) row.style.display = checked ? "" : "none";
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelector('[name="tmt_label_type"]')?.addEventListener("change", toggleTMT);
+    document.querySelector('[name="project_type"]')?.addEventListener("change", toggleMicroByProjectType);
+    document.querySelector('[name="micro_rounds_enabled"]')?.addEventListener("change", toggleMicroRounds);
+
+    document.querySelector('[name="db_personal"]')?.addEventListener("change", togglePersonalFasta);
+    document.querySelector('[name="db_special_fasta"]')?.addEventListener("change", toggleSpecialFasta);
+
+    toggleTMT();
+    toggleMicroByProjectType();
+    togglePersonalFasta();
+    toggleSpecialFasta();
+  });
+</script>
+{% endblock %}

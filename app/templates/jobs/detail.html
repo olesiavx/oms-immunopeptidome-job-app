@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Job #{{ job.id }} · OMS Job App{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Job #{{ job.id }}</h1>
+    <div class="text-muted">Status: <strong>{{ job.status }}</strong> · Priority: <strong>{{ job.priority }}</strong></div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      {% if current_user.is_authenticated and (current_user.role == "admin" or current_user.role == "analyst") %}
+      <hr/>
+      <h2>Workflow</h2>
+
+      <form method="post" action="{{ url_for('jobs.assign_job', job_id=job.id) }}">
+        {{ csrf_form.hidden_tag() }}
+        <label>Assign to</label><br/>
+        <select name="assignee_user_id">
+          {% for u in analysts %}
+            <option value="{{ u.id }}" {% if job.assigned_primary_user_id == u.id %}selected{% endif %}>
+              {{ u.name }} ({{ u.role }})
+            </option>
+          {% endfor %}
+        </select>
+        <button type="submit">Assign</button>
+      </form>
+
+      <form method="post" action="{{ url_for('jobs.update_status', job_id=job.id) }}">
+        {{ csrf_form.hidden_tag() }}
+        <label>Status</label><br/>
+        <select name="status">
+          {% for s in ["SUBMITTED","TRIAGED","IN_PROGRESS","WAITING_ON_DATA","QC","COMPLETED","ARCHIVED"] %}
+            <option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Update status</button>
+      </form>
+      {% endif %}
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Search config (quick view)</h2>
+          {% if search_config %}
+          <ul class="list-unstyled mb-0">
+            <li><strong>Project type:</strong> {{ search_config.project_type }}</li>
+            <li><strong>Species:</strong> {{ search_config.species }}</li>
+            <li><strong>Instrument:</strong> {{ search_config.instrument or "-" }}</li>
+            <li><strong>MS mode:</strong> {{ search_config.ms_mode }}</li>
+            <li><strong>TMT:</strong> {{ search_config.tmt_label_type }} {% if search_config.tmt_plex %} (plex {{ search_config.tmt_plex }}){% endif %}</li>
+            <li><strong>Carbamidomethylated:</strong> {{ "Yes" if search_config.carbamidomethylated else "No" }}</li>
+            <li><strong>Mods:</strong> {{ (search_config.additional_mods or [])|join(", ") or "-" }}</li>
+            <li><strong>Engines:</strong> {{ search_config.search_engines_mode }}</li>
+            <li><strong>Extra searches:</strong> {{ (search_config.additional_searches or [])|join(", ") or "-" }}</li>
+          </ul>
+          {% else %}
+          <p class="mb-0 text-muted">No search config yet.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Raw files</h2>
+          {% if raw_files %}
+          <ul class="mb-0">
+            {% for rf in raw_files %}
+            <li class="mb-1"><code>{{ rf.location_uri }}</code>{% if rf.notes %} — <small class="text-muted">{{ rf.notes }}</small>{% endif %}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="mb-0 text-muted">None added.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Database requests</h2>
+          {% if db_reqs %}
+          <ul class="mb-0">
+            {% for dr in db_reqs %}
+            <li class="mb-2">
+              <strong>Rank {{ dr.rank_level }}:</strong> {{ dr.db_tier }}
+              {% if dr.requires_rnaseq %}<span class="text-muted"> (requires RNAseq)</span>{% endif %}
+              {% if dr.fasta_location %}<br/><small class="text-muted">FASTA: <code>{{ dr.fasta_location }}</code></small>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="mb-0 text-muted">None added.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <h2 class="h5 mb-3">Validation</h2>
+          {% if validation_config %}
+          <ul class="mb-0">
+            <li>HLA binding: {{ "Yes" if validation_config.hla_binding else "No" }}</li>
+            <li>Delta score conflict resolution: {{ "Yes" if validation_config.conflict_resolution_delta_score_filter else "No" }}</li>
+            <li>PEP filter: {{ "Yes" if validation_config.pep_filter else "No" }}</li>
+            <li>2-engine agreement: {{ "Yes" if validation_config.two_search_engine_agreement else "No" }}</li>
+            <li>PepQuery: {{ "Yes" if validation_config.pepquery else "No" }}</li>
+            <li>Genome mapping tool: {{ validation_config.genome_mapping_tool or "-" }}</li>
+            <li>Immunogenicity analysis: {{ "Yes" if validation_config.immunogenicity_analysis else "No" }}</li>
+          </ul>
+          {% else %}
+          <p class="mb-0 text-muted">No validation config yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <aside class="col-lg-4">
+      {% if current_user.is_authenticated and (current_user.role == "admin" or current_user.role == "analyst") %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-3">Workflow</h3>
+
+          <form method="post" action="{{ url_for('jobs.assign_job', job_id=job.id) }}" class="mb-3">
+            {{ csrf_form.hidden_tag() }}
+            <label class="form-label">Assign to</label>
+            <select class="form-select" name="assignee_user_id">
+              <option value="">— Unassigned —</option>
+              {% for u in analysts %}
+                <option value="{{ u.id }}" {% if job.assigned_primary_user_id == u.id %}selected{% endif %}>
+                  {{ u.name }} ({{ u.role }})
+                </option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-outline-primary btn-sm mt-2" type="submit">Assign</button>
+          </form>
+
+          <form method="post" action="{{ url_for('jobs.update_status', job_id=job.id) }}">
+            {{ csrf_form.hidden_tag() }}
+            <label class="form-label">Status</label>
+            <select class="form-select" name="status">
+              {% for s in ["SUBMITTED","TRIAGED","IN_PROGRESS","WAITING_ON_DATA","QC","COMPLETED","ARCHIVED"] %}
+                <option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm mt-2" type="submit">Update status</button>
+          </form>
+
+          <form method="post"
+                action="{{ url_for('jobs.archive_job', job_id=job.id) }}"
+                onsubmit="return confirm('Archive this job?');">
+            {{ csrf_form.hidden_tag() }}
+            <button class="btn btn-outline-warning btn-sm mt-2">Archive job</button>
+          </form>
+
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h3 class="h6">Job details</h3>
+          <p class="mb-1"><strong>Project:</strong> <a href="{{ url_for('main.project_detail', project_id=job.project.id) }}">{{ job.project.name }}</a></p>
+          <p class="mb-1"><strong>Assigned:</strong> {{ job.assigned_primary_user.name if job.assigned_primary_user else "—" }}</p>
+          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.export_job_json', job_id=job.id) }}">Export JSON</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body d-flex flex-column gap-2">
+          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.edit_config', job_id=job.id) }}">Edit OMS Config</a>
+          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.raw_files', job_id=job.id) }}">Raw Files</a>
+          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.databases', job_id=job.id) }}">Database Requests</a>
+          {% if search_config and search_config.project_type == "MICROPROTEOME" %}
+          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.micro_rounds', job_id=job.id) }}">Microproteome Rounds</a>
+          {% endif %}
+          <a class="btn btn-link btn-sm w-100 text-start" href="{{ url_for('jobs.list_jobs') }}">← Back to Jobs</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Raw Files · Job #{{ job.id }}{% endblock %}
+{% block content %}
+  <h1>Raw Files — Job #{{ job.id }}</h1>
+  <p><a href="{{ url_for('jobs.job_detail', job_id=job.id) }}">← Back to Job</a></p>
+
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <p>{{ form.location_uri.label }}<br/>{{ form.location_uri() }}</p>
+    <p>{{ form.notes.label }}<br/>{{ form.notes() }}</p>
+    {{ form.submit() }}
+  </form>
+
+  <hr/>
+
+  {% if items %}
+    <ul>
+      {% for rf in items %}
+        <li><code>{{ rf.location_uri }}</code>{% if rf.notes %} — {{ rf.notes }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No raw files yet.</p>
+  {% endif %}
+{% endblock %}

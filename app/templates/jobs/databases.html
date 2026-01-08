@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Databases · Job #{{ job.id }}{% endblock %}
+{% block content %}
+  <h1>Database Requests — Job #{{ job.id }}</h1>
+  <p><a href="{{ url_for('jobs.job_detail', job_id=job.id) }}">← Back to Job</a></p>
+
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <p>{{ form.db_tier.label }}<br/>{{ form.db_tier() }}</p>
+    <p>{{ form.rank_level.label }}<br/>{{ form.rank_level() }}</p>
+
+    <p>{{ form.requires_rnaseq() }} {{ form.requires_rnaseq.label }}</p>
+    <p>{{ form.requirements_text.label }}<br/>{{ form.requirements_text(rows=3) }}</p>
+
+    <p>{{ form.fasta_location.label }}<br/>{{ form.fasta_location() }}</p>
+    <p>{{ form.notes.label }}<br/>{{ form.notes(rows=3) }}</p>
+
+    {{ form.submit() }}
+  </form>
+
+  <hr/>
+
+  {% if items %}
+    <ul>
+      {% for dr in items %}
+        <li>
+          <b>Rank {{ dr.rank_level }}:</b> {{ dr.db_tier }}
+          {% if dr.requires_rnaseq %} (requires RNAseq){% endif %}
+          {% if dr.fasta_location %}<br/><small>FASTA: <code>{{ dr.fasta_location }}</code></small>{% endif %}
+          {% if dr.requirements_text %}<br/><small>{{ dr.requirements_text }}</small>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No database requests yet.</p>
+  {% endif %}
+{% endblock %}

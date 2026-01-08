@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edit Config · Job #{{ job.id }}{% endblock %}
+{% block content %}
+  <h1>Edit OMS Config — Job #{{ job.id }}</h1>
+  <p><a href="{{ url_for('jobs.job_detail', job_id=job.id) }}">← Back to Job</a></p>
+
+  <hr/>
+
+  <h2>Search Config</h2>
+  <form method="post">
+    {{ sc_form.hidden_tag() }}
+    <input type="hidden" name="_which" value="search"/>
+
+    <p>{{ sc_form.project_type.label }}<br/>{{ sc_form.project_type() }}</p>
+    <p>{{ sc_form.species.label }}<br/>{{ sc_form.species() }}</p>
+    <p>{{ sc_form.instrument.label }}<br/>{{ sc_form.instrument() }}</p>
+    <p>{{ sc_form.ms_mode.label }}<br/>{{ sc_form.ms_mode() }}</p>
+
+    <p>{{ sc_form.tmt_label_type.label }}<br/>{{ sc_form.tmt_label_type() }}</p>
+    <p>{{ sc_form.tmt_plex.label }}<br/>{{ sc_form.tmt_plex() }}</p>
+    <p>{{ sc_form.tmt_labelling_schema.label }}<br/>{{ sc_form.tmt_labelling_schema(rows=3) }}</p>
+
+    <p>{{ sc_form.carbamidomethylated() }} {{ sc_form.carbamidomethylated.label }}</p>
+    <p>{{ sc_form.additional_mods.label }}<br/>{{ sc_form.additional_mods() }}</p>
+
+    <p>{{ sc_form.sample_description.label }}<br/>{{ sc_form.sample_description(rows=4) }}</p>
+
+    <p>{{ sc_form.search_engines_mode.label }}<br/>{{ sc_form.search_engines_mode() }}</p>
+    <p>{{ sc_form.additional_searches.label }}<br/>{{ sc_form.additional_searches() }}</p>
+
+    <p>{{ sc_form.hla_typing_information.label }}<br/>{{ sc_form.hla_typing_information(rows=4) }}</p>
+
+    {{ sc_form.submit() }}
+  </form>
+
+  <hr/>
+
+  <h2>Validation Config</h2>
+  <form method="post">
+    {{ vc_form.hidden_tag() }}
+    <input type="hidden" name="_which" value="validation"/>
+
+    <p>{{ vc_form.hla_binding() }} {{ vc_form.hla_binding.label }}</p>
+    <p>{{ vc_form.conflict_resolution_delta_score_filter() }} {{ vc_form.conflict_resolution_delta_score_filter.label }}</p>
+    <p>{{ vc_form.pep_filter() }} {{ vc_form.pep_filter.label }}</p>
+    <p>{{ vc_form.two_search_engine_agreement() }} {{ vc_form.two_search_engine_agreement.label }}</p>
+    <p>{{ vc_form.pd_infrys_validation() }} {{ vc_form.pd_infrys_validation.label }}</p>
+    <p>{{ vc_form.pepquery() }} {{ vc_form.pepquery.label }}</p>
+
+    <p>{{ vc_form.rnaseq_mapping_read_quant() }} {{ vc_form.rnaseq_mapping_read_quant.label }}</p>
+    <p>{{ vc_form.genome_mapping_tool.label }}<br/>{{ vc_form.genome_mapping_tool() }}</p>
+    <p>{{ vc_form.immunogenicity_analysis() }} {{ vc_form.immunogenicity_analysis.label }}</p>
+
+    <p>{{ vc_form.notes.label }}<br/>{{ vc_form.notes(rows=4) }}</p>
+
+    {{ vc_form.submit() }}
+  </form>
+{% endblock %}

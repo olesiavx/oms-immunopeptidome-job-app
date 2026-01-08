@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}New Job · OMS Job App{% endblock %}
+{% block content %}
+  <h1>New Job</h1>
+
+  <form method="post" action="{{ url_for('jobs.new_job_post') }}">
+    {{ form.hidden_tag() }}
+
+    {{ form.project_name.label }}<br/>
+    {{ form.project_name() }}<br/>
+
+    {{ form.project_owner.label }}<br/>
+    {{ form.project_owner() }}<br/>
+
+    {{ form.project_partners.label }}<br/>
+    {{ form.project_partners() }}<br/>
+
+    {{ form.short_description.label }}<br/>
+    {{ form.short_description(rows=4) }}<br/>
+
+    {{ form.priority.label }}<br/>
+    {{ form.priority() }}<br/>
+
+    {{ form.submit() }}
+  </form>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Jobs · OMS Job App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">Jobs</h1>
+    <div class="text-muted small">Track OMS immunopeptidome job requests</div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{{ url_for('jobs.new_job_wizard') }}">+ New Full Job</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('jobs.new_job') }}">+ New Quick Job</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light small text-muted">
+          <tr>
+            <th class="text-nowrap">#</th>
+            <th class="text-nowrap">ID</th>
+            <th>Project</th>
+            <th class="text-nowrap">Status</th>
+            <th class="text-nowrap">Priority</th>
+            <th>Assigned</th>
+            <th class="text-nowrap">Created</th>
+            <th class="text-end text-nowrap">Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for job in jobs %}
+          <tr>
+            <td class="text-nowrap">{{ loop.index }}</td>
+
+            <td class="text-nowrap">
+              <a class="fw-semibold text-decoration-none"
+                 href="{{ url_for('jobs.job_detail', job_id=job.id) }}">
+                #{{ job.id }}
+              </a>
+            </td>
+
+            <td>{{ job.project.name }}</td>
+
+            <td>
+              {% set badge =
+                "bg-secondary" if job.status=="SUBMITTED" else
+                "bg-info" if job.status=="TRIAGED" else
+                "bg-primary" if job.status=="IN_PROGRESS" else
+                "bg-warning text-dark" if job.status=="WAITING_ON_DATA" else
+                "bg-dark" if job.status=="QC" else
+                "bg-success" if job.status=="COMPLETED" else
+                "bg-light text-dark"
+              %}
+              <span class="badge {{ badge }} px-2">
+                {{ job.status }}
+              </span>
+            </td>
+
+            <td class="text-nowrap">
+              <span class="badge bg-primary-subtle text-primary">
+                {{ job.priority }}
+              </span>
+            </td>
+
+            <td>
+              {{ job.assigned_primary_user.name if job.assigned_primary_user else "—" }}
+            </td>
+
+            <td class="text-muted small text-nowrap">
+              {{ job.created_at.strftime('%Y-%m-%d') if job.created_at else "—" }}
+            </td>
+
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('jobs.job_detail', job_id=job.id) }}">
+                View
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">
+              No jobs yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

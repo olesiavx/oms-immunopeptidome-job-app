@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Home · OMS Job App{% endblock %}
+{% block content %}
+  <h1>OMS Immunopeptidome Job App</h1>
+  {% if user.is_authenticated %}
+    <p>You’re logged in.</p>
+<div class="d-flex flex-column gap-2 mt-3" style="max-width: 320px;">
+  <a class="btn btn-primary" href="{{ url_for('jobs.new_job') }}">
+    + Create Quick Job
+  </a>
+
+  <a class="btn btn-outline-primary" href="{{ url_for('jobs.new_job_wizard') }}">
+    + Create Full Job
+  </a>
+
+  <a class="btn btn-outline-secondary" href="{{ url_for('jobs.list_jobs') }}">
+    View Jobs
+  </a>
+</div>
+  {% else %}
+    <p>Please log in to submit or manage jobs.</p>
+  {% endif %}
+{% endblock %}
