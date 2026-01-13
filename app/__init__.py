@@ -6,7 +6,7 @@ from .forms import CSRFOnlyForm
 def create_app():
     app = Flask(__name__)
 
-    app.config["secret"] = os.getenv("secret", "dev-secret-key")
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
         "DATABASE_URL",
