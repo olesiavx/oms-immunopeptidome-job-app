@@ -1,6 +1,5 @@
-from app.models import job
-from app.models.oms_config import SearchConfig
-from flask import render_template, redirect, url_for, flash, request, abort, jsonify
+from io import BytesIO
+from flask import render_template, redirect, url_for, flash, request, abort, jsonify, send_file
 from flask_login import login_required, current_user
 from . import jobs_bp
 from .forms import (
@@ -18,6 +17,9 @@ from ..models import (
     MSMode, TMTLabelType, SearchEnginesMode,
     Project, JobAssignment
 )
+from ..forms import CSRFOnlyForm
+import io
+
 
 @jobs_bp.get("/dashboard")
 @login_required
@@ -27,26 +29,24 @@ def dashboard():
     mine = Job.query.filter_by(assigned_primary_user_id=current_user.id).order_by(Job.created_at.desc()).limit(20).all()
     return render_template("jobs/dashboard.html", counts=counts, unassigned=unassigned, mine=mine)
 
+
 @jobs_bp.post("/<int:job_id>/archive")
 @login_required
 def archive_job(job_id):
     job = Job.query.get_or_404(job_id)
-
     if current_user.role not in ("admin", "analyst"):
         abort(403)
-
     job.status = JobStatus.ARCHIVED
-
     db.session.add(JobEvent(
         job_id=job.id,
         actor_user_id=current_user.id,
         event_type="ARCHIVED",
         payload_json=None
     ))
-
     db.session.commit()
     flash("Job archived.", "info")
     return redirect(url_for("jobs.list_jobs"))
+
 
 @jobs_bp.route("/new-wizard", methods=["GET", "POST"])
 @login_required
@@ -212,6 +212,7 @@ def new_job_wizard():
 
     return render_template("jobs/new_wizard.html", form=form)
 
+
 @jobs_bp.get("/")
 @login_required
 def list_jobs():
@@ -223,11 +224,13 @@ def list_jobs():
     jobs = Job.query.filter(Job.status != JobStatus.ARCHIVED).all()
     return render_template("jobs/list.html", jobs=jobs, status=status, statuses=JobStatus.ALL)
 
+
 @jobs_bp.get("/new")
 @login_required
 def new_job():
     form = NewJobForm()
     return render_template("jobs/new.html", form=form)
+
 
 @jobs_bp.post("/new")
 @login_required
@@ -273,15 +276,18 @@ def new_job_post():
     flash(f"Job #{job.id} created.", "success")
     return redirect(url_for("jobs.list_jobs"))
 
+
 def _get_job_or_404(job_id: int) -> Job:
     job = Job.query.get(job_id)
     if not job:
         abort(404)
     return job
 
+
 def _require_analyst():
     if not current_user.is_authenticated or not getattr(current_user, "is_analyst", lambda: False)():
         abort(403)
+
 
 @jobs_bp.post("/<int:job_id>/assign")
 @login_required
@@ -315,6 +321,7 @@ def assign_job(job_id: int):
     flash("Job assigned.", "success")
     return redirect(url_for("jobs.job_detail", job_id=job.id))
 
+
 @jobs_bp.post("/<int:job_id>/status")
 @login_required
 def update_status(job_id: int):
@@ -338,6 +345,7 @@ def update_status(job_id: int):
         db.session.commit()
         flash("Status updated.", "success")
     return redirect(url_for("jobs.job_detail", job_id=job.id))
+
 
 @jobs_bp.get("/<int:job_id>/export.json")
 @login_required
@@ -429,6 +437,7 @@ def export_job_json(job_id: int):
     payload["pipeline_plan"] = plan
     return jsonify(payload)
 
+
 @jobs_bp.get("/<int:job_id>")
 @login_required
 def job_detail(job_id: int):
@@ -449,6 +458,7 @@ def job_detail(job_id: int):
         rounds=rounds,
         analysts=analysts,
     )
+
 
 @jobs_bp.route("/<int:job_id>/config", methods=["GET", "POST"])
 @login_required
@@ -530,6 +540,7 @@ def edit_config(job_id: int):
         flash("Please fix the form errors.", "warning")
     return render_template("jobs/config.html", job=job, sc_form=sc_form, vc_form=vc_form)
 
+
 @jobs_bp.route("/<int:job_id>/raw-files", methods=["GET", "POST"])
 @login_required
 def raw_files(job_id: int):
@@ -553,6 +564,7 @@ def raw_files(job_id: int):
         return redirect(url_for("jobs.raw_files", job_id=job.id))
     items = JobRawFile.query.filter_by(job_id=job.id).order_by(JobRawFile.created_at.desc()).all()
     return render_template("jobs/raw_files.html", job=job, form=form, items=items)
+
 
 @jobs_bp.route("/<int:job_id>/databases", methods=["GET", "POST"])
 @login_required
@@ -590,6 +602,7 @@ def databases(job_id: int):
     items = DatabaseRequest.query.filter_by(job_id=job.id).order_by(DatabaseRequest.rank_level.asc()).all()
     return render_template("jobs/databases.html", job=job, form=form, items=items)
 
+
 @jobs_bp.route("/<int:job_id>/micro-rounds", methods=["GET", "POST"])
 @login_required
 def micro_rounds(job_id: int):
@@ -616,3 +629,106 @@ def micro_rounds(job_id: int):
         return redirect(url_for("jobs.micro_rounds", job_id=job.id))
     items = MicroproteomeRound.query.filter_by(job_id=job.id).order_by(MicroproteomeRound.min_len.asc()).all()
     return render_template("jobs/micro_rounds.html", job=job, form=form, items=items)
+
+
+@jobs_bp.post("/<int:job_id>/export/nextflow")
+@login_required
+def export_nextflow(job_id: int):
+    form = CSRFOnlyForm()
+    if not form.validate_on_submit():
+        abort(400)
+    job = db.session.get(Job, job_id)
+    if not job:
+        abort(404)
+    job_dict = job.to_dict() if hasattr(job, "to_dict") else {
+        "name": getattr(job, "title", f"job_{job.id}"),
+        "steps": getattr(job, "steps", []),
+    }
+    nf_text = build_nextflow_nf(job_dict)
+    buf = io.BytesIO(nf_text.encode("utf-8"))
+    filename = f"{safe_slug(job_dict.get('name', f'job_{job.id}'))}.nf"
+    return send_file(
+        buf,
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def safe_slug(s: str) -> str:
+    s = (s or "").strip().lower()
+    out = []
+    for ch in s:
+        if ch.isalnum() or ch in ("-", "_"):
+            out.append(ch)
+        elif ch.isspace():
+            out.append("_")
+    return "".join(out) or "pipeline"
+
+
+def build_nextflow_nf(job_dict: dict) -> str:
+    name = job_dict.get("name", "pipeline")
+    steps = job_dict.get("steps", [])
+    process_blocks = []
+    workflow_calls = []
+    for i, step in enumerate(steps, start=1):
+        step_name = step.get("name") or f"step_{i}"
+        proc_name = safe_slug(step_name).upper()
+        cmd = step.get("cmd") or "echo 'TODO: implement step command'"
+        process_blocks.append(f"""
+process {proc_name} {{
+  tag "{step_name}"
+
+  input:
+    path input_files
+
+  output:
+    path "out_{i}", emit: out
+
+  script:
+  \"\"\"
+  mkdir -p out_{i}
+  {cmd} > out_{i}/log.txt
+  \"\"\"
+}}
+""")
+        workflow_calls.append(f"{proc_name}(input_files)")
+    if not steps:
+        process_blocks.append('''process HELLO {
+  output:
+    path "results"
+
+  script:
+  """
+  mkdir -p results
+  echo "Hello from Nextflow" > results/hello.txt
+  """
+}
+''')
+        workflow_calls.append("HELLO()")
+    return f"""\
+/*
+  Auto-generated by OMS Job App
+  Pipeline name: {name}
+*/
+
+nextflow.enable.dsl = 2
+
+params.input = params.input ?: "data/*"
+params.outdir = params.outdir ?: "results"
+
+workflow {{
+
+  input_files = Channel.fromPath(params.input)
+
+{indent_lines("\\n".join(workflow_calls), 2)}
+
+}}
+
+{chr(10).join(process_blocks)}
+"""
+
+
+def indent_lines(text: str, spaces: int) -> str:
+    pad = " " * spaces
+    return "\n".join(pad + line if line.strip() else line for line in text.splitlines())

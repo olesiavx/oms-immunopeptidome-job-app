@@ -160,7 +160,15 @@
           <h3 class="h6">Job details</h3>
           <p class="mb-1"><strong>Project:</strong> <a href="{{ url_for('main.project_detail', project_id=job.project.id) }}">{{ job.project.name }}</a></p>
           <p class="mb-1"><strong>Assigned:</strong> {{ job.assigned_primary_user.name if job.assigned_primary_user else "—" }}</p>
-          <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.export_job_json', job_id=job.id) }}">Export JSON</a>
+
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('jobs.export_job_json', job_id=job.id) }}">Export JSON</a>
+            <form method="post" action="{{ url_for('jobs.export_nextflow', job_id=job.id) }}">
+              {{ csrf_form.hidden_tag() }}
+              <button class="btn btn-outline-secondary btn-sm w-100" type="submit">Export Nextflow Config</button>
+            </form>
+          </div>
+
         </div>
       </div>
 
