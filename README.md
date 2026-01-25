@@ -18,6 +18,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 flask db upgrade
 python wsgi.py
+flask run --port 5050 (for active updates)
 
 ### Creating an admin user
 
