@@ -1,5 +1,5 @@
 from io import BytesIO
-from flask import render_template, redirect, url_for, flash, request, abort, jsonify, send_file
+from flask import render_template, redirect, url_for, flash, request, abort, jsonify, send_file, current_app 
 from flask_login import login_required, current_user
 from . import jobs_bp
 from .forms import (
@@ -7,6 +7,8 @@ from .forms import (
     RawFileForm, DatabaseRequestForm, MicroproteomeRoundForm,
     AssignJobForm, UpdateStatusForm
 )
+from app.jobs.wizard_tree import WizardTree
+from app.jobs.wizard_service import WizardSessionService
 from .wizard_forms import NewJobWizardForm
 from ..extensions import db
 from ..models import (
@@ -17,9 +19,16 @@ from ..models import (
     MSMode, TMTLabelType, SearchEnginesMode,
     Project, JobAssignment
 )
+from pathlib import Path
 from ..forms import CSRFOnlyForm
 import io
 
+from .wizard_tree import get_public_state, get_node_for_path
+
+def _wizard_service() -> WizardSessionService:
+    tree_path = Path(current_app.root_path) / "jobs" / "config" / "wizard_tree.json"
+    tree = WizardTree.from_json_file(str(tree_path))
+    return WizardSessionService(tree)
 
 @jobs_bp.get("/dashboard")
 @login_required
@@ -217,11 +226,11 @@ def new_job_wizard():
 @login_required
 def list_jobs():
     status = request.args.get("status")
-    q = Job.query.order_by(Job.created_at.desc())
+    q = Job.query.filter(Job.status != JobStatus.ARCHIVED).order_by(Job.created_at.desc())
     if status:
         q = q.filter(Job.status == status)
     jobs = q.limit(100).all()
-    jobs = Job.query.filter(Job.status != JobStatus.ARCHIVED).all()
+
     return render_template("jobs/list.html", jobs=jobs, status=status, statuses=JobStatus.ALL)
 
 
@@ -654,6 +663,48 @@ def export_nextflow(job_id: int):
         download_name=filename
     )
 
+@jobs_bp.route("/api/wizard/sessions", methods=["POST"])
+def wizard_create_session():
+    svc = _wizard_service()
+    ws = svc.create()
+    return jsonify(svc.state(ws)), 201
+
+
+@jobs_bp.route("/api/wizard/sessions/<int:session_id>/choose", methods=["POST"])
+def wizard_choose(session_id: int):
+    svc = _wizard_service()
+    ws = svc.get(session_id)
+
+    data = request.get_json(silent=True) or {}
+    choice = data.get("choice")
+    if not choice:
+        return jsonify({"error": "Missing 'choice'"}), 400
+
+    try:
+        ws = svc.set_choice(ws, choice)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify(svc.state(ws))
+
+
+@jobs_bp.route("/api/wizard/sessions/<int:session_id>/back", methods=["POST"])
+def wizard_back(session_id: int):
+    svc = _wizard_service()
+    ws = svc.get(session_id)
+    ws = svc.back(ws)
+    return jsonify(svc.state(ws))
+
+
+@jobs_bp.route("/api/wizard/sessions/<int:session_id>/inputs", methods=["PATCH"])
+def wizard_patch_inputs(session_id: int):
+    svc = _wizard_service()
+    ws = svc.get(session_id)
+
+    data = request.get_json(silent=True) or {}
+    ws = svc.set_inputs(ws, data)
+    return jsonify(svc.state(ws))
+
 
 def safe_slug(s: str) -> str:
     s = (s or "").strip().lower()
@@ -727,7 +778,148 @@ workflow {{
 
 {chr(10).join(process_blocks)}
 """
+import json
+from pathlib import Path
+from flask import jsonify, current_app
+from flask_login import login_required, current_user
 
+from app.models.wizard_session import WizardSession
+from app.models.job import Job, JobStatus, JobPriority, JobEvent
+from app.models import Project
+from app.extensions import db
+
+
+def _wizard_missing_required(profile: str, inputs: dict) -> list[str]:
+    missing = []
+    for k in ["mzml_input_dir", "database", "out_dir"]:
+        if not inputs.get(k):
+            missing.append(k)
+
+    if profile.startswith("HLA_"):
+        if not inputs.get("hla_prediction", False) and not inputs.get("HLA"):
+            missing.append("HLA")
+
+    if inputs.get("tmt") is True and not inputs.get("isotype"):
+        missing.append("isotype")
+
+    return missing
+
+
+@jobs_bp.post("/api/wizard/sessions/<int:session_id>/submit")
+@login_required
+def wizard_submit(session_id: int):
+    ws = WizardSession.query.get_or_404(session_id)
+
+    if not ws.profile:
+        return jsonify({"error": "Wizard session not complete (no profile resolved)."}), 400
+
+    inputs = ws.inputs or {}
+    missing = _wizard_missing_required(ws.profile, inputs)
+    if missing:
+        return jsonify({"error": "Missing required inputs", "missing": missing}), 400
+
+    # If you haven't added project fields to the wizard yet, we generate a minimal project.
+    project_name = inputs.get("project_name") or f"Wizard Project (session {ws.id})"
+
+    project = Project(
+        name=project_name,
+        owner_user_id=current_user.id,
+        created_by_user_id=current_user.id,
+        partners_text=inputs.get("project_partners"),
+        short_description=inputs.get("short_description"),
+    )
+    db.session.add(project)
+    db.session.flush()
+
+    priority = (inputs.get("priority") or JobPriority.NORMAL).upper()
+    if priority not in JobPriority.ALL:
+        priority = JobPriority.NORMAL
+
+    job = Job(
+        project_id=project.id,
+        submitted_by_user_id=current_user.id,
+        priority=priority,
+        status=JobStatus.SUBMITTED,
+
+        job_kind="PRESET",
+        nf_profile=ws.profile,
+        nf_params=inputs,
+    )
+    db.session.add(job)
+    db.session.flush()
+
+    # same defaults as /jobs/new
+    db.session.add(SearchConfig(job_id=job.id))
+    db.session.add(ValidationConfig(job_id=job.id))
+
+    # Write run artifacts
+    run_dir = Path(current_app.instance_path) / "jobs" / str(job.id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    params_path = run_dir / "params.json"
+    params_path.write_text(json.dumps(inputs, indent=2), encoding="utf-8")
+
+    repo_root = Path(current_app.root_path).parent
+    pipeline_path = repo_root / "pipeline" / "main.nf"
+    config_path = repo_root / "pipeline" / "nextflow.config"
+
+    run_sh = run_dir / "run.sh"
+    run_sh.write_text(
+        "\n".join([
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            f'nextflow run "{pipeline_path}" -c "{config_path}" -profile "{ws.profile}" -params-file "{params_path}"',
+            ""
+        ]),
+        encoding="utf-8"
+    )
+    run_sh.chmod(0o755)
+
+    (run_dir / "profile.txt").write_text(ws.profile + "\n", encoding="utf-8")
+
+    (run_dir / "nextflow.config.snapshot").write_text(
+        Path(config_path).read_text(encoding="utf-8"),
+        encoding="utf-8"
+    )
+
+    job.run_dir = str(run_dir)
+
+    db.session.add(JobEvent(
+        job_id=job.id,
+        actor_user_id=current_user.id,
+        event_type="CREATED_FROM_WIZARD",
+        payload_json={
+            "wizard_session_id": ws.id,
+            "path": [p for p in (session.path or []) if p != "options"]
+            "profile": ws.profile,
+        }
+    ))
+
+    ws.status = "submitted"
+    db.session.commit()
+
+    return jsonify({
+        "job_id": job.id,
+        "project_id": project.id,
+        "wizard_session_id": ws.id,
+        "profile": ws.profile,
+        "run_dir": job.run_dir,
+        "detail_url": url_for("jobs.job_detail", job_id=job.id),
+    }), 201
+
+
+from flask import render_template_string
+from flask_login import login_required
+
+@jobs_bp.get("/wizard-test-submit/<int:session_id>")
+@login_required
+def wizard_test_submit_page(session_id: int):
+    return render_template_string("""
+    <h1>Wizard submit test</h1>
+    <form method="post" action="/jobs/api/wizard/sessions/{{sid}}/submit">
+      <button type="submit">Submit wizard session {{sid}}</button>
+    </form>
+    """, sid=session_id)
 
 def indent_lines(text: str, spaces: int) -> str:
     pad = " " * spaces

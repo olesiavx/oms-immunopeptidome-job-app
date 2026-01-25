@@ -6,3 +6,4 @@ from .oms_config import (
     SearchConfig, DatabaseRequest, ValidationConfig, JobRawFile, MicroproteomeRound,
     ProjectType, MSMode, TMTLabelType, SearchEnginesMode, DatabaseTier
 )
+from .wizard_session import WizardSession

@@ -1,6 +1,8 @@
 from datetime import datetime
 from ..extensions import db
 
+
+
 class JobStatus:
     SUBMITTED = "SUBMITTED"
     TRIAGED = "TRIAGED"
@@ -24,6 +26,12 @@ class JobPriority:
 
 class Job(db.Model):
     __tablename__ = "jobs"
+
+    job_kind = db.Column(db.String(16), nullable=False, default="PRESET")
+
+    nf_profile = db.Column(db.String(128), nullable=True)
+    nf_params = db.Column(db.JSON, nullable=True)
+    run_dir = db.Column(db.String(512), nullable=True)
 
     id = db.Column(db.Integer, primary_key=True)
 

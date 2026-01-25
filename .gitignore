@@ -1,34 +1,34 @@
+# --------------------
+# Nextflow
+# --------------------
+.nextflow/
+.nextflow.log*
+work/
+pipeline/
+results/
 
+# --------------------
+# Python
+# --------------------
 __pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.env
+*.pyc
 .venv/
-venv/
-ENV/
-env/
+.env
 
+# --------------------
+# Flask / App runtime
+# --------------------
 instance/
-*.env
-.env.*
-config.py
-config_local.py
-.env.example
+app/jobs/config/
 
-*.db
-*.sqlite
-*.sqlite3
+# --------------------
+# Migrations
+# --------------------
+migrations/versions/
 
-migrations/versions/__pycache__/
-
-*.log
-
+# --------------------
+# OS
+# --------------------
 .DS_Store
 .idea/
 .vscode/
-*.swp
-
-.coverage
-htmlcov/
-.pytest_cache/

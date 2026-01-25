@@ -19,8 +19,80 @@
   </div>
 </div>
 
+<div class="card mb-3" id="hierarchy_wizard_card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <h2 class="h5 mb-1">Preset builder</h2>
+        <div class="text-muted small">
+          Choose options to build a Nextflow preset. You can submit as soon as a profile is resolved.
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" type="button" id="wiz_back" disabled>Back</button>
+        <button class="btn btn-outline-danger btn-sm" type="button" id="wiz_reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <div class="small text-muted mb-1">Path</div>
+      <div id="wiz_path" class="fw-semibold">root</div>
+    </div>
+
+    <div class="mt-3">
+      <div class="small text-muted mb-2">Options</div>
+      <div id="wiz_options" class="d-flex flex-wrap gap-2"></div>
+    </div>
+
+    <div class="mt-3" id="wiz_profile_wrap" style="display:none;">
+      <div class="alert alert-success py-2 mb-0">
+        <span class="fw-semibold">Profile resolved:</span>
+        <code id="wiz_profile"></code>
+        <span id="wiz_refine_hint" class="text-muted small ms-2"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <form method="post" class="d-flex flex-column gap-3">
   {{ form.hidden_tag() }}
+  <div id="legacy_form_wrap" style="display:none;">
+<div class="card" id="nextflow_inputs_card" style="display:none;">
+  <div class="card-body">
+    <h2 class="h5 mb-3">Nextflow inputs</h2>
+
+    <div class="alert alert-info small">
+      Fill these paths to generate <code>params.json</code> and <code>run.sh</code>.
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12">
+        <label class="form-label">mzML input glob</label>
+        <input class="form-control" name="mzml_input_dir" id="mzml_input_dir" placeholder="/path/to/mzml/*.mzML">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">FASTA database glob</label>
+        <input class="form-control" name="database" id="database" placeholder="/path/to/db/*.fasta">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Output directory</label>
+        <input class="form-control" name="out_dir" id="out_dir" placeholder="/path/to/results">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">HLA typing (optional)</label>
+        <input class="form-control" name="HLA" id="HLA" placeholder="HLA-A03:01,HLA-A01:01">
+        <div class="form-text">Only needed for HLA presets; leave blank for proteome presets.</div>
+      </div>
+    </div>
+
+    <!-- hidden fields that backend can use -->
+    <input type="hidden" name="wizard_session_id" id="wizard_session_id">
+    <input type="hidden" name="profile" id="profile">
+  </div>
+</div>
 
   <div class="card">
     <div class="card-body">
@@ -120,7 +192,7 @@
     <div class="card-body">
       <h2 class="h5 mb-3">Raw files</h2>
       {{ form.raw_files_multiline.label(class="form-label") }}
-      {{ form.raw_files_multiline(class="form-control", rows="4", placeholder="/path/to/file1.raw\n/path/to/file2.raw") }}
+      {{ form.raw_files_multiline(class="form-control", rows="4", placeholder="please add the files to the one directory\n/path/to/raw_files") }}
       <div class="form-text">One path/URI per line.</div>
     </div>
   </div>
@@ -259,16 +331,27 @@
   <div class="d-flex justify-content-end">
     {{ form.submit(class="btn btn-primary btn-lg") }}
   </div>
+  </div>
 </form>
 
 <script>
-  function toggleTMT() {
-    const tmtType = document.querySelector('[name="tmt_label_type"]')?.value || "";
+  function toggleTMT(selectEl) {
+    const row = selectEl.closest(".sample-row");
+    if (!row) return;
+
+    const tmtType = selectEl.value || "";
     const show = (tmtType !== "LF");
-    const plexRow = document.getElementById("tmt_plex_row");
-    const schemaRow = document.getElementById("tmt_schema_row");
+    
+    const plexRow = row.querySelector(".tmt-plex-row");
+    const schemaRow = row.querySelector(".tmt_schema_row");
+
     if (plexRow) plexRow.style.display = show ? "" : "none";
     if (schemaRow) schemaRow.style.display = show ? "" : "none";
+
+    if (!show) {
+        plexRow?.querySelectorAll("input, select, textarea").forEach(el => el.value = "");
+        schemaRow?.querySelectorAll("input, select, textarea").forEach(el => el.value = "")
+    }
   }
 
   function toggleMicroByProjectType() {
@@ -312,5 +395,109 @@
     togglePersonalFasta();
     toggleSpecialFasta();
   });
+</script>
+
+<script>
+(() => {
+  let sessionId = null;
+  let currentState = null;
+
+  async function api(url, method="GET", body=null) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? {"Content-Type":"application/json"} : {},
+      body: body ? JSON.stringify(body) : null
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw data;
+    return data;
+  }
+
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function render(state) {
+    currentState = state;
+
+    // path
+    const path = (state.path && state.path.length) ? state.path.join(" → ") : "root";
+    setText("wiz_path", path);
+
+    // back button
+    const backBtn = document.getElementById("wiz_back");
+    if (backBtn) backBtn.disabled = !(state.path && state.path.length);
+
+    // options
+    const optsWrap = document.getElementById("wiz_options");
+    if (optsWrap) {
+      optsWrap.innerHTML = "";
+      (state.options || []).forEach(opt => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn btn-outline-primary btn-sm";
+        b.textContent = opt;
+        b.onclick = () => choose(opt);
+        optsWrap.appendChild(b);
+      });
+    }
+
+    // profile resolved?
+    const hasProfile = !!state.profile;
+    const profWrap = document.getElementById("wiz_profile_wrap");
+    const inputsCard = document.getElementById("nextflow_inputs_card");
+
+    if (profWrap) profWrap.style.display = hasProfile ? "" : "none";
+    if (inputsCard) inputsCard.style.display = hasProfile ? "" : "none";
+
+    if (hasProfile) {
+      setText("wiz_profile", state.profile);
+      document.getElementById("wizard_session_id").value = state.id;
+      document.getElementById("profile").value = state.profile;
+
+      const hint = document.getElementById("wiz_refine_hint");
+      if (hint) {
+        hint.textContent = (state.options && state.options.length)
+          ? "You can submit now, or refine further."
+          : "Ready to submit.";
+      }
+    }
+  }
+
+  async function start() {
+    const s = await api("/jobs/api/wizard/sessions", "POST");
+    sessionId = s.id;
+    render(s);
+  }
+
+  async function choose(choice) {
+    const s = await api(`/jobs/api/wizard/sessions/${sessionId}/choose`, "POST", {choice});
+    render(s);
+  }
+
+  async function back() {
+    const s = await api(`/jobs/api/wizard/sessions/${sessionId}/back`, "POST");
+    render(s);
+  }
+
+  async function reset() {
+    sessionId = null;
+    currentState = null;
+    render({id:null, path:[], options:[], profile:null});
+    await start();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("wiz_back")?.addEventListener("click", back);
+    document.getElementById("wiz_reset")?.addEventListener("click", reset);
+
+    // Start session on page load
+    start().catch(err => {
+      console.error(err);
+      alert("Wizard failed to start. Check server logs.");
+    });
+  });
+})();
 </script>
 {% endblock %}
